@@ -13,22 +13,36 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("Regions:")
 	for _, region := range regions.Regions {
-		fmt.Println("Region Name : ", *region.RegionName)
+		fmt.Println("- ", *region.RegionName)
 	}
 
 	svc := ec2.New(&aws.Config{Region: aws.String("ap-southeast-1")})
 
-	resp, err := svc.DescribeInstances(nil)
+	instances, err := svc.DescribeInstances(nil)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("> Number of reservation sets: ", len(resp.Reservations))
-	for idx, res := range resp.Reservations {
-		fmt.Println("  > Number of instances: ", len(res.Instances))
-		for _, inst := range resp.Reservations[idx].Instances {
-			fmt.Println("    - Instance ID: ", *inst.InstanceId)
+	fmt.Println("Instances:")
+	instanceMap := make(map[string]ec2.Instance)
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			fmt.Println("- ", *instance.InstanceId)
+			instanceMap[*instance.InstanceId] = *instance
 		}
+	}
+
+	securityGroups, err := svc.DescribeSecurityGroups(nil)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Security Groups:")
+	securityGroupMap := make(map[string]ec2.SecurityGroup)
+	for _, securityGroup := range securityGroups.SecurityGroups {
+		fmt.Println("- ", *securityGroup.GroupId, *securityGroup.GroupName)
+		securityGroupMap[*securityGroup.GroupId] = *securityGroup
 	}
 }
