@@ -15,6 +15,13 @@ import (
 )
 
 func processBilling(config Config) {
+	var now time.Time = time.Now()
+
+	payload := Payload{Text: "AWS report for " + now.String(), Channel: config.Slack.Channel, Username: config.Slack.Username, IconUrl: config.Slack.IconUrl, Attachments: make([]Attachment, 1)}
+	payload.Attachments[0].Fallback = "Billing summary"
+	payload.Attachments[0].Title = "Billing summary"
+	payload.Attachments[0].Fields = make([]Field, 0)
+
 	s3client := s3.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	const billingDataDir = "data/aws-dashboard/billing"
@@ -30,8 +37,6 @@ func processBilling(config Config) {
 	const suffix string = ".csv.zip"
 	const filename string = "-aws-billing-detailed-line-items-with-resources-and-tags-"
 
-	var now time.Time = time.Now()
-
 	for {
 		listObjectsOutput, err := s3client.ListObjects(&listObjectsInput)
 		if err != nil {
@@ -44,10 +49,10 @@ func processBilling(config Config) {
 				p := strings.Index(s, filename)
 				if p >= 0 {
 					/*
-					accountId := strconv.ParseInt(s[:p], 10, 64)
-					if err != nil {
-						panic(err)
-					}
+						accountId := strconv.ParseInt(s[:p], 10, 64)
+						if err != nil {
+							panic(err)
+						}
 					*/
 					year_month := s[p+len(filename):]
 					parts := strings.Split(year_month, "-")
@@ -159,8 +164,11 @@ func processBilling(config Config) {
 						currentDuration := lastRecordTime.Sub(startOfCurrentMonth)
 						estimatedCost := totalCost * monthDuration.Hours() / (currentDuration.Hours() + 1)
 						fmt.Printf("- %04d-%02d USD%.2f to date, estimated cost USD%.2f\n", year, month, totalCost, estimatedCost)
+						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
+						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d (est.)", year, month), Value: fmt.Sprintf("USD%.2f", estimatedCost), Short: true})
 					} else {
 						fmt.Printf("- %04d-%02d USD%.2f\n", year, month, totalCost)
+						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
 					}
 				}
 			}
@@ -171,5 +179,13 @@ func processBilling(config Config) {
 		}
 
 		listObjectsInput.Marker = listObjectsOutput.NextMarker
+	}
+
+	slackClient := new(SlackIncomingWebhookClient)
+	slackClient.Url = config.Slack.IncomingWebhookUrl
+
+	err = slackClient.SendMessage(payload)
+	if err != nil {
+		panic(err)
 	}
 }
