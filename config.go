@@ -7,16 +7,16 @@ import (
 )
 
 type General struct {
-  DefaultRegion string `json:defaultRegion`
+  DefaultRegion string `json:"defaultRegion"`
 }
 
 type Billing struct {
-	BucketName string `json:bucketName`
+	BucketName string `json:"bucketName"`
 }
 
 type Config struct {
-  General General `json:general`
-	Billing Billing `json:billing`
+  General General `json:"general"`
+	Billing Billing `json:"billing"`
 }
 
 func readConfig(filename string) (cfg Config, err error) {
