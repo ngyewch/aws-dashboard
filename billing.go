@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	//"time"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -30,6 +30,8 @@ func processBilling(config Config) {
 	const suffix string = ".csv.zip"
 	const filename string = "-aws-billing-detailed-line-items-with-resources-and-tags-"
 
+	var now time.Time = time.Now()
+
 	for {
 		listObjectsOutput, err := s3client.ListObjects(&listObjectsInput)
 		if err != nil {
@@ -41,11 +43,22 @@ func processBilling(config Config) {
 				s := strings.TrimSuffix(*s3Object.Key, suffix)
 				p := strings.Index(s, filename)
 				if p >= 0 {
-					//accountId := s[:p]
+					/*
+					accountId := strconv.ParseInt(s[:p], 10, 64)
+					if err != nil {
+						panic(err)
+					}
+					*/
 					year_month := s[p+len(filename):]
 					parts := strings.Split(year_month, "-")
-					year := parts[0]
-					month := parts[1]
+					year, err := strconv.ParseInt(parts[0], 10, 32)
+					if err != nil {
+						panic(err)
+					}
+					month, err := strconv.ParseInt(parts[1], 10, 32)
+					if err != nil {
+						panic(err)
+					}
 
 					path := billingDataDir + "/" + *s3Object.Key
 
@@ -89,6 +102,7 @@ func processBilling(config Config) {
 					defer zipReader.Close()
 
 					var totalCost float64 = 0
+					var lastRecordTime time.Time
 					for _, f := range zipReader.File {
 						fileReader, err := f.Open()
 						if err != nil {
@@ -120,25 +134,34 @@ func processBilling(config Config) {
 							}
 
 							if record[headerMap["ProductName"]] != "" {
-								/*
-								productName := record[headerMap["ProductName"]]
+								//productName := record[headerMap["ProductName"]]
 								usageStartDate, err := time.Parse("2006-01-02 15:04:05", record[headerMap["UsageStartDate"]])
 								if err != nil {
 									panic(err)
 								}
-								*/
 								cost, err := strconv.ParseFloat(record[headerMap["Cost"]], 64)
 								if err != nil {
 									panic(err)
 								}
 
 								totalCost += cost
+								lastRecordTime = usageStartDate
+
 								//fmt.Println(usageStartDate, productName, cost)
 							}
 						}
 					}
 
-					fmt.Printf("- %s-%s USD%.2f\n", year, month, totalCost)
+					if (now.Year() == int(year)) && (now.Month() == time.Month(month)) {
+						startOfCurrentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+						startOfNextMonth := startOfCurrentMonth.AddDate(0, 1, 0)
+						monthDuration := startOfNextMonth.Sub(startOfCurrentMonth)
+						currentDuration := lastRecordTime.Sub(startOfCurrentMonth)
+						estimatedCost := totalCost * monthDuration.Hours() / (currentDuration.Hours() + 1)
+						fmt.Printf("- %04d-%02d USD%.2f to date, estimated cost USD%.2f\n", year, month, totalCost, estimatedCost)
+					} else {
+						fmt.Printf("- %04d-%02d USD%.2f\n", year, month, totalCost)
+					}
 				}
 			}
 		}
