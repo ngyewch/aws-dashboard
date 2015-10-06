@@ -14,13 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-func processBilling(config Config) {
+func processBilling(config Config, attachment *Attachment) {
 	var now time.Time = time.Now()
-
-	payload := Payload{Text: "AWS report for " + now.String(), Channel: config.Slack.Channel, Username: config.Slack.Username, IconUrl: config.Slack.IconUrl, Attachments: make([]Attachment, 1)}
-	payload.Attachments[0].Fallback = "Billing summary"
-	payload.Attachments[0].Title = "Billing summary"
-	payload.Attachments[0].Fields = make([]Field, 0)
 
 	s3client := s3.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
@@ -164,11 +159,11 @@ func processBilling(config Config) {
 						currentDuration := lastRecordTime.Sub(startOfCurrentMonth)
 						estimatedCost := totalCost * monthDuration.Hours() / (currentDuration.Hours() + 1)
 						fmt.Printf("- %04d-%02d USD%.2f to date, estimated cost USD%.2f\n", year, month, totalCost, estimatedCost)
-						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
-						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d (est.)", year, month), Value: fmt.Sprintf("USD%.2f", estimatedCost), Short: true})
+						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
+						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d (est.)", year, month), Value: fmt.Sprintf("USD%.2f", estimatedCost), Short: true})
 					} else {
 						fmt.Printf("- %04d-%02d USD%.2f\n", year, month, totalCost)
-						payload.Attachments[0].Fields = append(payload.Attachments[0].Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
+						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
 					}
 				}
 			}
@@ -179,13 +174,5 @@ func processBilling(config Config) {
 		}
 
 		listObjectsInput.Marker = listObjectsOutput.NextMarker
-	}
-
-	slackClient := new(SlackIncomingWebhookClient)
-	slackClient.Url = config.Slack.IncomingWebhookUrl
-
-	err = slackClient.SendMessage(payload)
-	if err != nil {
-		panic(err)
 	}
 }
