@@ -14,6 +14,7 @@ import (
 
 type Overview struct {
 	Instances *ec2.DescribeInstancesOutput
+	Volumes *ec2.DescribeVolumesOutput
 	SecurityGroups *ec2.DescribeSecurityGroupsOutput
 	Vpcs *ec2.DescribeVpcsOutput
 	Subnets *ec2.DescribeSubnetsOutput
@@ -55,6 +56,12 @@ func processOverview(config Config, attachment *Attachment) {
 		}
 	}
 	attachment.Fields = append(attachment.Fields, Field{Title: "Running instances", Value: fmt.Sprintf("%d", instanceCount), Short: true})
+
+	volumes, err := ec2client.DescribeVolumes(nil)
+	if err != nil {
+		panic(err)
+	}
+	attachment.Fields = append(attachment.Fields, Field{Title: "Volumes", Value: fmt.Sprintf("%d", len(volumes.Volumes)), Short: true})
 
 	securityGroups, err := ec2client.DescribeSecurityGroups(nil)
 	if err != nil {
