@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,30 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
+
+type Pair struct {
+	Key string
+	Value float64
+	Percentage float64
+}
+
+type PairList []Pair
+
+func (p Pair) String() string {
+	return fmt.Sprintf("%s: USD%.2f (%.1f%%)", p.Key, p.Value, p.Percentage)
+}
+
+func (p PairList) Len() int {
+	return len(p)
+}
+
+func (p PairList) Less(i, j int) bool {
+	return p[i].Value < p[j].Value
+}
+
+func (p PairList) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
 
 func processBilling(config Config, attachment *Attachment) {
 	var now time.Time = time.Now()
@@ -31,6 +56,16 @@ func processBilling(config Config, attachment *Attachment) {
 
 	const suffix string = ".csv.zip"
 	const filename string = "-aws-billing-detailed-line-items-with-resources-and-tags-"
+
+	shortProductNames := make(map[string]string)
+	shortProductNames["AWS Key Management Service"] = "KMS"
+	shortProductNames["Amazon DynamoDB"] = "DynamoDB"
+	shortProductNames["Amazon Elastic Compute Cloud"] = "EC2"
+	shortProductNames["Amazon RDS Service"] = "RDS"
+	shortProductNames["Amazon Route 53"] = "Route53"
+	shortProductNames["Amazon Simple Notification Service"] = "SNS"
+	shortProductNames["Amazon Simple Queue Service"] = "SQS"
+	shortProductNames["Amazon Simple Storage Service"] = "S3"
 
 	for {
 		listObjectsOutput, err := s3client.ListObjects(&listObjectsInput)
@@ -102,6 +137,7 @@ func processBilling(config Config, attachment *Attachment) {
 					defer zipReader.Close()
 
 					var totalCost float64 = 0
+					costMap := make(map[string]float64)
 					var lastRecordTime time.Time
 					for _, f := range zipReader.File {
 						fileReader, err := f.Open()
@@ -133,7 +169,8 @@ func processBilling(config Config, attachment *Attachment) {
 								panic(err)
 							}
 
-							if record[headerMap["ProductName"]] != "" {
+							productName := record[headerMap["ProductName"]]
+							if productName != "" {
 								//productName := record[headerMap["ProductName"]]
 								usageStartDate, err := time.Parse("2006-01-02 15:04:05", record[headerMap["UsageStartDate"]])
 								if err != nil {
@@ -145,6 +182,7 @@ func processBilling(config Config, attachment *Attachment) {
 								}
 
 								totalCost += cost
+								costMap[productName] += cost
 								lastRecordTime = usageStartDate
 
 								//fmt.Println(usageStartDate, productName, cost)
@@ -161,6 +199,24 @@ func processBilling(config Config, attachment *Attachment) {
 						fmt.Printf("- %04d-%02d USD%.2f to date, estimated cost USD%.2f\n", year, month, totalCost, estimatedCost)
 						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
 						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d (est.)", year, month), Value: fmt.Sprintf("USD%.2f", estimatedCost), Short: true})
+
+						var pl PairList
+						for key, value := range costMap {
+							if value < 0.01 {
+								continue
+							}
+							shortProductName := shortProductNames[key]
+							if shortProductName == "" {
+								shortProductName = key
+							}
+							pl = append(pl, Pair{shortProductName, value, (value / totalCost) * 100})
+						}
+						sort.Sort(sort.Reverse(pl))
+						var arr []string
+						for _, p := range pl {
+							arr = append(arr, p.String())
+						}
+						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d (detailed)", year, month), Value: strings.Join(arr, "\n"), Short: false})
 					} else {
 						fmt.Printf("- %04d-%02d USD%.2f\n", year, month, totalCost)
 						attachment.Fields = append(attachment.Fields, Field{Title: fmt.Sprintf("%04d-%02d", year, month), Value: fmt.Sprintf("USD%.2f", totalCost), Short: true})
