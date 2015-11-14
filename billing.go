@@ -98,7 +98,7 @@ func processBilling(config Config, attachment *Attachment) {
 					path := billingDataDir + "/" + *s3Object.Key
 
 					fileInfo, err := os.Stat(path)
-					if (err == nil) && !fileInfo.ModTime().Equal(*s3Object.LastModified) {
+					if ((err != nil) && os.IsNotExist(err)) || ((err == nil) && !fileInfo.ModTime().Equal(*s3Object.LastModified)) {
 
 						fmt.Println("- Downloading", *s3Object.Key)
 
