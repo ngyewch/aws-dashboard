@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -42,7 +43,7 @@ func (p PairList) Swap(i, j int) {
 func processBilling(config Config, attachment *Attachment) {
 	var now time.Time = time.Now()
 
-	s3client := s3.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
+	s3client := s3.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	const billingDataDir = "data/aws-dashboard/billing"
 	err := os.MkdirAll(billingDataDir, os.ModeDir)

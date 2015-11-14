@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -25,7 +26,7 @@ type Overview struct {
 }
 
 func processOverview(config Config, attachment *Attachment) {
-	ec2client := ec2.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
+	ec2client := ec2.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	regions, err := ec2client.DescribeRegions(&ec2.DescribeRegionsInput{})
 	if err != nil {
@@ -36,7 +37,7 @@ func processOverview(config Config, attachment *Attachment) {
 		fmt.Println("-", *region.RegionName)
 	}
 
-	ec2client = ec2.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
+	ec2client = ec2.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	instances, err := ec2client.DescribeInstances(nil)
 	if err != nil {
@@ -93,7 +94,7 @@ func processOverview(config Config, attachment *Attachment) {
 		panic(err)
 	}
 
-	s3client := s3.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
+	s3client := s3.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	buckets, err := s3client.ListBuckets(nil)
 	if err != nil {
@@ -101,7 +102,7 @@ func processOverview(config Config, attachment *Attachment) {
 	}
 	attachment.Fields = append(attachment.Fields, Field{Title: "S3 buckets", Value: fmt.Sprintf("%d", len(buckets.Buckets)), Short: true})
 
-	rdsclient := rds.New(&aws.Config{Region: aws.String(config.General.DefaultRegion)})
+	rdsclient := rds.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
 	dbInstances, err := rdsclient.DescribeDBInstances(nil)
 	if err != nil {
