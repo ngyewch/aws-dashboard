@@ -45,7 +45,7 @@ func processBilling(config Config, attachment *Attachment) {
 
 	s3client := s3.New(session.New(), &aws.Config{Region: aws.String(config.General.DefaultRegion)})
 
-	const billingDataDir = "data/aws-dashboard/billing"
+	const billingDataDir = "/tmp"
 	err := os.MkdirAll(billingDataDir, os.ModeDir)
 	if err != nil {
 		panic(err)

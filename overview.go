@@ -116,7 +116,7 @@ func processOverview(config Config, attachment *Attachment) {
 		panic(err)
 	}
 
-	const outputDir = "data/aws-dashboard"
+	const outputDir = "/tmp"
 	err = os.MkdirAll(outputDir, os.ModeDir)
 	if err != nil {
 		panic(err)
